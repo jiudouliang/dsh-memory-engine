@@ -5,23 +5,26 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { stripRendererExport } from '../scripts/lib/strip-export.mjs';
+import { layoutPositions } from '../lib/render/layout.mjs';
 
 const root = new URL('../', import.meta.url);
 const marker = '/* __CANVAS_RENDERER__ */';
+const layoutMarker = '/* __GRAPH_LAYOUT__ */';
 
 test('client bundle matches canvas.js and client.src.js byte for byte', () => {
   const renderer = fs.readFileSync(new URL('lib/render/canvas.js', root), 'utf8');
   const template = fs.readFileSync(new URL('lib/client.src.js', root), 'utf8');
   assert.equal(template.split(marker).length, 2);
+  assert.equal(template.split(layoutMarker).length, 2);
   const expected = '// 由 scripts/build-client.mjs 生成，别直接改这个文件\n'
-    + template.replace(marker, () => stripRendererExport(renderer));
+    + template.replace(marker, () => stripRendererExport(renderer)).replace(layoutMarker, () => layoutPositions.toString());
   assert.equal(fs.readFileSync(new URL('lib/client.js', root), 'utf8'), expected, 'lib/client.js 已过期，请跑 pnpm build');
 });
 
 function isolatedBuild(context) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-client-build-'));
   context.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  for (const file of ['lib/render/canvas.js', 'lib/client.src.js', 'lib/client.js',
+  for (const file of ['lib/render/canvas.js', 'lib/render/layout.mjs', 'lib/client.src.js', 'lib/client.js',
     'scripts/build-client.mjs', 'scripts/lib/strip-export.mjs', 'test/build-freshness.test.mjs']) {
     const target = path.join(directory, file);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -50,6 +53,11 @@ test('build is deterministic and freshness catches even an unbuilt whitespace ch
   assert.equal(isolated.run().status, 0);
   const fresh = isolated.run(['--test', '--test-name-pattern=^client bundle matches', 'test/build-freshness.test.mjs']);
   assert.equal(fresh.status, 0, fresh.stdout + fresh.stderr);
+  const layoutFile = path.join(isolated.directory, 'lib/render/layout.mjs');
+  fs.writeFileSync(layoutFile, fs.readFileSync(layoutFile, 'utf8').replace('20261030;', '20261031;').replace('let hash = 20261030;', 'let hash = 20261031;'));
+  assert.equal(isolated.run(['scripts/build-client.mjs', '--check']).status, 1);
+  assert.equal(isolated.run().status, 0);
+  assert.equal(isolated.run(['scripts/build-client.mjs', '--check']).status, 0);
 });
 
 test('failed builds preserve the old artifact and remove temporary files', context => {

@@ -1,1 +1,24 @@
-��^��n��?�zf��+{�`�8��gc���ƥm�$��쵫^��!�Z $�����雱�
+﻿# 依赖
+node_modules/
+
+# 打包产物
+*.tgz
+*.zip
+
+# 本地备份（我自己的 .bak，不进包也不进仓库）
+_local-backup/
+*.bak
+*.bak-*
+
+# 本地验收材料
+验收记录.md
+验收证据.json
+
+# 运行时数据
+state/
+.dsh/
+*.log
+
+# 系统
+.DS_Store
+Thumbs.db

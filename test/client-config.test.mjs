@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8');
-const defaults = { hideButton: false, showGuideOnEmpty: true, autoMemory: { enabled: false, maxPerTurn: 2, dailyCap: 40 }, showAutoMemoryCostHint: true };
+const defaults = { hideButton: false, showGuideOnEmpty: true, graphTheme: 'classic', graphLayout: 'sphere', autoMemory: { enabled: false, maxPerTurn: 2, dailyCap: 40 }, showAutoMemoryCostHint: true };
 const response = data => ({ ok: true, json: async () => ({ ok: true, data }) });
 const flush = () => new Promise(resolve => setImmediate(resolve));
 

@@ -24,6 +24,7 @@ function fixture(context) {
 test('persona config validates types, Unicode length and speed bounds with portable defaults', context => {
   const { home, writeConfig } = fixture(context);
   assert.deepEqual(readUiConfig(home), { hideButton: false, showGuideOnEmpty: true, hasPersona: false, personaTitle: '角色卡', spinSpeed: 0.35,
+    graphTheme: 'classic', graphLayout: 'sphere',
     autoMemory: { enabled: false, maxPerTurn: 2, dailyCap: 40 }, showAutoMemoryCostHint: true, autoImport: { enabled: true, sourceCount: 1 }, lastError: null });
   for (const value of [{ personaFile: 123 }, { personaText: null }, { personaTitle: false },
     { personaText: '🐳'.repeat(4001) }, { spinSpeed: '0.35' }, { spinSpeed: 0 }, { spinSpeed: 1.51 }, { spinSpeed: null }]) {
@@ -75,6 +76,7 @@ test('UI config reveals only persona presence/title/speed and never includes rol
   writeConfig({ personaFile, personaTitle: '小雅', hideButton: true, showGuideOnEmpty: false, bridgeRoot: 'private-bridge' });
   const config = readUiConfig(home);
   assert.deepEqual(config, { hideButton: true, showGuideOnEmpty: false, hasPersona: true, personaTitle: '小雅', spinSpeed: 0.35,
+    graphTheme: 'classic', graphLayout: 'sphere',
     autoMemory: { enabled: false, maxPerTurn: 2, dailyCap: 40 }, showAutoMemoryCostHint: true, autoImport: { enabled: true, sourceCount: 2 }, lastError: null });
   assert.doesNotMatch(JSON.stringify(config), /私密|private-bridge|personaFile|personaText/);
   fs.unlinkSync(personaFile);

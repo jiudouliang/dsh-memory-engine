@@ -196,6 +196,7 @@ test('UI config exposes only public preferences with safe defaults and retains r
   const get = await host(context, store);
   assert.deepEqual((await get('/memory-engine/api/config')).json,
     { ok: true, data: { hideButton: false, showGuideOnEmpty: true, hasPersona: false, personaTitle: '角色卡', spinSpeed: 0.35,
+      graphTheme: 'classic', graphLayout: 'sphere',
       autoMemory: { enabled: false, maxPerTurn: 2, dailyCap: 40 }, showAutoMemoryCostHint: true, autoImport: { enabled: true, sourceCount: 1 }, lastError: null } });
   assert.equal(fs.existsSync(path.dirname(store.file)), false);
   fs.mkdirSync(path.dirname(store.file), { recursive: true });
@@ -204,6 +205,7 @@ test('UI config exposes only public preferences with safe defaults and retains r
   const before = fs.readFileSync(configFile);
   const configured = await get('/memory-engine/api/config');
   assert.deepEqual(configured.json, { ok: true, data: { hideButton: true, showGuideOnEmpty: false, hasPersona: false, personaTitle: '角色卡', spinSpeed: 0.35,
+    graphTheme: 'classic', graphLayout: 'sphere',
     autoMemory: { enabled: false, maxPerTurn: 2, dailyCap: 40 }, showAutoMemoryCostHint: true, autoImport: { enabled: true, sourceCount: 2 }, lastError: null } });
   assert.doesNotMatch(configured.text, /private-source|bridgeRoot/);
   assert.deepEqual(fs.readFileSync(configFile), before);
@@ -211,6 +213,7 @@ test('UI config exposes only public preferences with safe defaults and retains r
   assert.equal((await get('/memory-engine/api/config', { method: 'PUT' })).status, 400);
   fs.writeFileSync(configFile, JSON.stringify({ hideButton: 'true', showGuideOnEmpty: 0 }));
   assert.deepEqual((await get('/memory-engine/api/config')).json.data, { hideButton: false, showGuideOnEmpty: true, hasPersona: false, personaTitle: '角色卡', spinSpeed: 0.35,
+    graphTheme: 'classic', graphLayout: 'sphere',
     autoMemory: { enabled: false, maxPerTurn: 2, dailyCap: 40 }, showAutoMemoryCostHint: true, autoImport: { enabled: true, sourceCount: 1 }, lastError: null });
   fs.writeFileSync(configFile, 'invalid-json');
   assert.equal((await get('/memory-engine/api/config')).status, 500);

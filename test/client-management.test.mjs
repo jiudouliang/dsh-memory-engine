@@ -49,7 +49,7 @@ function fixture() {
     },
   };
   vm.runInNewContext(source.replace('exports.apply = apply;',
-    'exports.components = { MemoryList, MemoryRow, MemorySettings, MemoryButton, MemoryCanvas, GuideCard, ConfirmationDialog, AutoMemoryToggle }; exports.apply = apply;'), sandbox);
+    'exports.components = { MemoryList, MemoryRow, MemorySettings, MemoryButton, MemoryCanvas, GuideCard, ConfirmationDialog, AutoMemoryToggle, AppearanceControls }; exports.apply = apply;'), sandbox);
   const components = definition.factory(name => name === 'react' ? React : { createPortal: value => value }).components;
   function mount(component, initialProps = {}) {
     const runner = { hooks: [], effects: [], index: 0, props: initialProps, tree: null,
@@ -92,6 +92,64 @@ async function openAutomatic(setup, settings) {
   return runner;
 }
 const automaticControl = (setup, runner) => all(runner.tree).find(element => element.type === setup.components.AutoMemoryToggle);
+
+test('appearance chooser has seven radio options and restores classic sphere together', () => {
+  const setup = fixture(), changes = [];
+  const chooser = setup.mount(setup.components.AppearanceControls, { settings: { graphTheme: 'paper', graphLayout: 'brain' },
+    location: 'header', busy: false, onChange: value => changes.push(value) });
+  const radios = all(chooser.tree).filter(element => element.props.type === 'radio');
+  assert.equal(radios.length, 7);
+  assert.deepEqual(radios.filter(element => element.props.checked).map(element => element.props.value), ['paper', 'brain']);
+  assert.match(textOf(chooser.tree), /铅绘素描/u);
+  radios.find(element => element.props.value === 'galaxy').props.onChange();
+  find(chooser.tree, 'data-memory-engine-appearance-reset', 'header').props.onClick();
+  assert.equal(JSON.stringify(changes), JSON.stringify([{ graphLayout: 'galaxy' }, { graphTheme: 'classic', graphLayout: 'sphere' }]));
+  chooser.unmount();
+});
+
+test('appearance saves immediately, synchronizes settings and rejects overlapping saves', async () => {
+  const setup = fixture();
+  const settings = { ...autoSettings(false), graphTheme: 'classic', graphLayout: 'sphere' };
+  const runner = await openAutomatic(setup, settings);
+  find(runner.tree, 'data-memory-engine-appearance').props.onClick(); runner.render();
+  const control = () => all(runner.tree).find(element => element.type === setup.components.AppearanceControls);
+  control().props.onChange({ graphTheme: 'paper', graphLayout: 'galaxy' }); runner.render();
+  assert.equal(control().props.settings.graphTheme, 'paper');
+  assert.equal(control().props.settings.graphLayout, 'galaxy');
+  control().props.onChange({ graphTheme: 'mono' });
+  assert.equal(setup.requests.length, 1);
+  const request = setup.requests.shift();
+  assert.equal(request.options.method, 'PUT');
+  assert.deepEqual(JSON.parse(request.options.body), { graphTheme: 'paper', graphLayout: 'galaxy' });
+  request.reply({ ...settings, graphTheme: 'paper', graphLayout: 'galaxy' }); await flush(); runner.render();
+  find(runner.tree, 'data-memory-engine-tab', 'settings').props.onClick(); runner.render();
+  const panel = all(runner.tree).find(element => element.type === setup.components.MemorySettings);
+  assert.equal(panel.props.settings.graphTheme, 'paper'); assert.equal(panel.props.settings.graphLayout, 'galaxy');
+  panel.props.onAppearanceChange({ graphLayout: 'brain' }); runner.render();
+  setup.requests.shift().reply({ ...settings, graphTheme: 'paper', graphLayout: 'brain' }); await flush(); runner.render();
+  find(runner.tree, 'data-memory-engine-appearance').props.onClick(); runner.render();
+  assert.equal(control().props.settings.graphLayout, 'brain');
+  runner.unmount();
+});
+
+test('failed appearance write rolls back the canvas options and selection without a map request', async () => {
+  const setup = fixture();
+  const settings = { ...autoSettings(false), graphTheme: 'neon', graphLayout: 'galaxy' };
+  const runner = await openAutomatic(setup, settings);
+  const canvas = () => all(runner.tree).find(element => element.type === setup.components.MemoryCanvas);
+  canvas().props.onSelect(memory('picked')); runner.render();
+  find(runner.tree, 'data-memory-engine-appearance').props.onClick(); runner.render();
+  all(runner.tree).find(element => element.type === setup.components.AppearanceControls).props.onChange({ graphTheme: 'paper', graphLayout: 'brain' });
+  runner.render();
+  assert.equal(canvas().props.graphLayout, 'brain');
+  const request = setup.requests.shift();
+  request.reply('模拟配置写入失败', 500); await flush(); runner.render();
+  assert.equal(canvas().props.graphTheme, 'neon'); assert.equal(canvas().props.graphLayout, 'galaxy');
+  assert.ok(all(runner.tree).some(element => element.props.node?.id === 'picked'));
+  assert.match(textOf(find(runner.tree, 'data-memory-engine-config-error')), /已恢复.*模拟配置写入失败/u);
+  assert.equal(setup.requests.length, 0);
+  runner.unmount();
+});
 
 test('settings shows the zero-match warning and switches to loose import', async () => {
   const setup = fixture();

@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRenderer } from '../lib/render/canvas.js';
 import { renderHtml } from '../lib/render/render.mjs';
+import { layoutPositions } from '../lib/render/layout.mjs';
 
 function fixture() {
   return {
@@ -34,7 +35,7 @@ function environment() {
     const id = canvasId++;
     const context = new Proxy({}, {
       get(_, key) {
-        if (key === 'createRadialGradient') return (...args) => {
+        if (key === 'createRadialGradient' || key === 'createLinearGradient') return (...args) => {
           const gradient = { gradient: args, stops: [], addColorStop(...stop) { this.stops.push(stop); } };
           return gradient;
         };
@@ -81,7 +82,7 @@ function environment() {
       const callbacks = [...pending.values()]; pending.clear();
       for (const callback of callbacks) callback(time);
     },
-    create(data = fixture()) { return vm.runInNewContext('(' + createRenderer.toString() + ')', window)(canvas, data); },
+    create(data = fixture(), options = {}) { return vm.runInNewContext('(' + createRenderer.toString() + ')', window)(canvas, data, options); },
   };
 }
 
@@ -97,6 +98,172 @@ test('standalone HTML and native canvas draw identical animation frames', () => 
     assert.equal(JSON.stringify(native.trace), JSON.stringify(legacy.trace), 'frame ' + time);
   }
   renderer.destroy();
+});
+
+test('omitted theme and explicit classic draw identical frames', () => {
+  const defaultEnv = environment(), classicEnv = environment();
+  const implicit = defaultEnv.create(), explicit = classicEnv.create(fixture(), { graphTheme: 'classic' });
+  implicit.start(); explicit.start(); defaultEnv.step(16.7); classicEnv.step(16.7);
+  assert.equal(JSON.stringify(defaultEnv.trace), JSON.stringify(classicEnv.trace));
+  implicit.destroy(); explicit.destroy();
+});
+
+test('four themes keep node projection, radius, dendrites and source data unchanged', () => {
+  const data = fixture(), before = JSON.stringify(data);
+  const geometry = [];
+  for (const graphTheme of ['classic', 'neon', 'paper', 'mono']) {
+    const env = environment(), renderer = env.create(data, { graphTheme });
+    renderer.start(); env.trace.length = 0; env.step(16.7);
+    geometry.push(JSON.stringify(env.trace.filter(entry => entry[0] === 0
+      && ['arc', 'moveTo', 'quadraticCurveTo', 'bezierCurveTo', 'lineWidth'].includes(entry[1]))));
+    renderer.destroy();
+  }
+  assert.equal(new Set(geometry).size, 1);
+  assert.equal(JSON.stringify(data), before);
+});
+
+test('theme change preserves dragged camera, selection and connected edges', () => {
+  const env = environment(), selected = [];
+  const data = fixture();
+  data.nodes = data.nodes.slice(0, 2).map((node, index) => ({ ...node, pos: { x: index ? 20 : -20, y: 0, z: 0 }, radius: 0.8 }));
+  data.links = [['0', '1']];
+  const renderer = env.create(data, { onSelect: node => selected.push(node.id) });
+  renderer.start(); env.step(16.7);
+  const point = env.trace.find(entry => entry[0] === 0 && entry[1] === 'arc' && entry[2] < 450);
+  env.canvas.emit('pointerdown', { clientX: point[2], clientY: point[3] });
+  env.canvas.emit('pointerup', { clientX: point[2], clientY: point[3] });
+  assert.deepEqual(selected, ['0']);
+  env.canvas.emit('pointerdown', { clientX: 100, clientY: 100 });
+  env.canvas.emit('pointermove', { clientX: 150, clientY: 120 });
+  const imageGeometry = () => {
+    env.trace.length = 0; env.step(100);
+    return JSON.stringify(env.trace.filter(entry => entry[0] === 0 && ['arc', 'moveTo', 'quadraticCurveTo'].includes(entry[1])));
+  };
+  imageGeometry();
+  renderer.setTheme('neon');
+  const neonGeometry = imageGeometry();
+  renderer.setTheme('paper');
+  const paperGeometry = imageGeometry();
+  const positions = trace => JSON.parse(trace).filter(entry => entry[1] === 'arc').map(entry => entry.slice(2, 4));
+  assert.deepEqual(positions(neonGeometry), positions(paperGeometry));
+  assert.equal(selected.length, 1);
+  assert.ok(env.trace.some(entry => entry[1] === 'strokeStyle' && entry[2] === 'rgba(65,65,65,0.34)'));
+  renderer.destroy();
+});
+
+test('paper glow is reduced and background is light without changing intensity', () => {
+  const classic = environment(), paper = environment();
+  const darkRenderer = classic.create(), lightRenderer = paper.create(fixture(), { graphTheme: 'paper' });
+  const glowAlpha = env => env.trace.find(entry => entry[1] === 'fillStyle' && entry[2]?.stops)?.[2].stops[0][1];
+  assert.match(glowAlpha(classic), /,0\.7\)$/u);
+  assert.match(glowAlpha(paper), /,0\.025\)$/u);
+  darkRenderer.start(); lightRenderer.start(); classic.step(16.7); paper.step(16.7);
+  assert.ok(paper.trace.some(entry => entry[1] === 'fillStyle' && entry[2] === '#f7f5f0'));
+  const alpha = env => env.trace.filter(entry => entry[0] === 0 && entry[1] === 'globalAlpha');
+  assert.deepEqual(alpha(paper), alpha(classic));
+  darkRenderer.destroy(); lightRenderer.destroy();
+});
+
+test('theme change has no timers, selection callbacks or same-theme sprite churn', () => {
+  const env = environment(), renderer = env.create();
+  renderer.start(); env.step(16.7);
+  const before = [env.pending.size, env.listenerCount(), env.observers.size];
+  for (let index = 0; index < 10; index++) renderer.setTheme(['neon', 'paper', 'mono', 'classic'][index % 4]);
+  assert.deepEqual([env.pending.size, env.listenerCount(), env.observers.size], before);
+  env.trace.length = 0; renderer.setTheme('paper');
+  assert.equal(env.trace.length, 0);
+  renderer.destroy(); renderer.setTheme('neon');
+  assert.equal(env.pending.size, 0); assert.equal(env.listenerCount(), 0);
+});
+
+test('invalid themes fail before changing the current palette', () => {
+  const env = environment(), renderer = env.create();
+  assert.throws(() => renderer.setTheme('invalid'), /未知/u);
+  assert.throws(() => renderer.setTheme('__proto__'), /未知/u);
+  renderer.start(); env.step(16.7);
+  assert.ok(env.trace.some(entry => entry[1] === 'fillStyle' && entry[2] === '#03060c'));
+  renderer.destroy();
+});
+
+test('layout switching preserves selection, radius, geometry on return, and bounded layout caches', () => {
+  const env = environment(), data = fixture(), calls = [];
+  data.spinSpeed = 0;
+  data.nodes = data.nodes.slice(0, 2).map((node, index) => ({ ...node, pos: { x: index ? 20 : -20, y: 0, z: 0 }, radius: 2, retention: 1 }));
+  data.links = [['0', '1']];
+  const renderer = env.create(data, { layoutNodes(nodes, layout) { calls.push(layout); return layoutPositions(nodes, layout); } });
+  renderer.start(); env.step(16.7);
+  const point = env.trace.find(entry => entry[0] === 0 && entry[1] === 'arc');
+  const selected = [];
+  renderer.onSelect(node => selected.push(node.id));
+  env.canvas.emit('pointerdown', { clientX: point[2], clientY: point[3] });
+  env.canvas.emit('pointerup', { clientX: point[2], clientY: point[3] });
+  assert.equal(selected.length, 1);
+  const original = JSON.stringify(data);
+  for (let round = 0; round < 5; round++) for (const layout of ['galaxy', 'brain', 'sphere']) {
+    renderer.setLayout(layout); env.trace.length = 0; env.step(33.4 + round * 16.7);
+    assert.equal(selected.length, 1);
+    assert.equal(env.pending.size, 1);
+    assert.ok(env.trace.some(entry => entry[0] === 0 && entry[1] === 'strokeStyle' && entry[2] === 'rgba(110,190,255,0.30)'));
+  }
+  assert.deepEqual(calls, ['galaxy', 'brain']);
+  assert.equal(JSON.stringify(data), original);
+  assert.throws(() => renderer.setLayout('wrong'), /未知/u);
+  renderer.destroy(); assert.equal(env.pending.size, 0);
+});
+
+test('native and offline render the same saved layout and palette and still rotate', () => {
+  for (const graphLayout of ['galaxy', 'brain', 'flat', 'spiral']) {
+    const offline = environment(), native = environment(), data = { ...fixture(), graphLayout, graphTheme: 'paper' };
+    vm.runInNewContext(renderHtml({ ...data, stars: data.nodes }).match(/<script>([\s\S]*?)<\/script>/)[1], offline.window);
+    const renderer = native.create(data, { layoutNodes: layoutPositions }); renderer.start();
+    const positions = [];
+    for (const time of [16.7, 33.4]) {
+      native.trace.length = 0; offline.trace.length = 0; native.step(time); offline.step(time);
+      assert.equal(JSON.stringify(native.trace), JSON.stringify(offline.trace));
+      positions.push(JSON.stringify(native.trace.filter(entry => entry[0] === 0 && entry[1] === 'arc').map(entry => entry.slice(2, 4))));
+    }
+    assert.notEqual(positions[0], positions[1]);
+    renderer.destroy();
+  }
+});
+
+test('galaxy keeps selected edges but dims and narrows them without fading node sprites', () => {
+  const env = environment(), data = fixture();
+  data.nodes = data.nodes.slice(0, 2).map((node, index) => ({ ...node, radius: 2, retention: 1, pos: { x: index ? 20 : -20, y: 0, z: 0 } }));
+  data.links = [['0', '1']];
+  const renderer = env.create(data, { layoutNodes: layoutPositions });
+  renderer.start(); env.step(16.7);
+  assert.ok(!env.trace.some(entry => entry[1] === 'strokeStyle' && entry[2] === 'rgba(110,190,255,0.30)'));
+  const position = env.trace.find(entry => entry[0] === 0 && entry[1] === 'arc');
+  env.canvas.emit('pointerdown', { clientX: position[2], clientY: position[3] });
+  env.canvas.emit('pointerup', { clientX: position[2], clientY: position[3] });
+  renderer.setLayout('galaxy'); env.trace.length = 0; env.step(33.4);
+  const begin = env.trace.findIndex(entry => entry[0] === 0 && entry[1] === 'globalAlpha' && entry[2] === 0.8);
+  assert.ok(begin >= 0);
+  const finish = env.trace.findIndex((entry, index) => index > begin && entry[0] === 0 && entry[1] === 'globalAlpha' && entry[2] === 1);
+  const edges = env.trace.slice(begin, finish);
+  assert.ok(edges.some(entry => entry[1] === 'lineWidth' && entry[2] === 0.8));
+  assert.ok(edges.some(entry => entry[1] === 'lineWidth' && entry[2] === 1.6));
+  assert.ok(edges.some(entry => entry[1] === 'quadraticCurveTo'));
+  assert.equal(edges.some(entry => entry[1] === 'drawImage'), false);
+  renderer.setLayout('sphere'); env.trace.length = 0; env.step(50.1);
+  assert.ok(env.trace.some(entry => entry[1] === 'lineWidth' && entry[2] === 2));
+  renderer.destroy();
+});
+
+test('old renderer layout names share canonical caches and render identical frames', () => {
+  for (const [legacy, canonical] of [['flat', 'galaxy'], ['spiral', 'brain']]) {
+    const first = environment(), second = environment(), calls = [];
+    const oldRenderer = first.create(fixture(), { graphLayout: legacy, layoutNodes(nodes, layout) { calls.push(layout); return layoutPositions(nodes, layout); } });
+    const newRenderer = second.create(fixture(), { graphLayout: canonical, layoutNodes: layoutPositions });
+    oldRenderer.start(); newRenderer.start(); first.step(16.7); second.step(16.7);
+    assert.equal(JSON.stringify(first.trace), JSON.stringify(second.trace));
+    for (let round = 0; round < 3; round++) {
+      oldRenderer.setLayout('sphere'); oldRenderer.setLayout(legacy); oldRenderer.setLayout(canonical);
+    }
+    assert.deepEqual(calls, [canonical]);
+    oldRenderer.destroy(); newRenderer.destroy();
+  }
 });
 
 test('start is idempotent; stop cancels RAF, observers and listeners; stale callbacks cannot restart it', () => {
