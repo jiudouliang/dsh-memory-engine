@@ -1,6 +1,6 @@
 {
   "name": "dsh-memory-engine",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "DSH 本地记忆插件：自动记忆、遗忘曲线、关键词关联、可检索可编辑，数据留在本机。",
   "keywords": [
     "dsh",
