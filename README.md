@@ -26,6 +26,19 @@ DSH 插件的本地记忆引擎，带神经网络可视化。它让 agent 保存
 
 在现有配置中可合并 `"graphTheme": "classic"` 和 `"graphLayout": "sphere"`。这两个字段通过现有配置接口和备份、原子写流程保存，非法值返回 400。未配置时外观与升级前相同；没有角色卡的库仍保留原来的默认脑状布局。CLI 生成的离线图谱也读取同一配置。
 
+## 0.7.7 修复：工具参数名撞 JSON Schema 保留字
+
+`memory_map` 的 `title`、`memory_forget` 的 `id` 是 JSON Schema 的保留关键字。宿主如果没把参数表转换成完整 schema，直接把这些名字当关键字发送，DeepSeek 会整轮返回 400：
+
+```
+Invalid schema for function 'memory_map':
+{"type":"string","description":"页面标题..."} is not of type "string"
+```
+
+修复：改名为 `pageTitle` / `memoryId`，旧参数名仍作为别名兼容，已有调用不受影响。
+
+**给插件作者**：工具参数名不要用 JSON Schema 关键字——`title`、`description`、`type`、`id`、`$ref`、`enum`、`default`、`required`、`properties`、`items`、`additionalProperties` 等。宿主把参数表当 schema 解析时会直接报错。
+
 ## 从 0.6.1 升级到 0.7.0 的变化
 
 - 不再占用 18886 端口，改用 DSH 宿主的同源路由。
