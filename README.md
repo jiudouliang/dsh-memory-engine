@@ -1,8 +1,8 @@
 ﻿# DSH 记忆引擎
 
-[![npm](https://img.shields.io/badge/npm-0.7.5-blue)](https://www.npmjs.com/package/dsh-memory-engine)
+[![npm](https://img.shields.io/badge/version-0.8.0-blue)](https://www.npmjs.com/package/dsh-memory-engine)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-257%20passed-brightgreen)](test)
+[![tests](https://img.shields.io/badge/tests-277%20passed-brightgreen)](test)
 
 DSH 插件的本地记忆引擎，带神经网络可视化。它让 agent 保存、召回和管理跨会话记忆，也能把你已有的记忆文件导进来。
 
@@ -11,7 +11,20 @@ DSH 插件的本地记忆引擎，带神经网络可视化。它让 agent 保存
 
 ![记忆图谱](docs/screenshot.png)
 
-当前版本：0.7.5。Node ≥22，零新增依赖。自动记忆默认关闭，由用户在图谱头部或设置页手动打开；开启后每轮对话会额外调用一次模型，可能产生费用。自动导入默认只收聊天会话的用户消息，支持来源白名单、工作指令过滤、流程话过滤、规则分类、错误原因、一次性重扫和账本清理。
+当前版本：0.8.0。Node ≥22，零新增依赖。新增四套配色与三种布局，默认保留原来的经典星空与球体。自动记忆默认关闭，由用户在图谱头部或设置页手动打开；开启后每轮对话会额外调用一次模型，可能产生费用。自动导入默认只收聊天会话的用户消息，支持来源白名单、工作指令过滤、流程话过滤、规则分类、错误原因、一次性重扫和账本清理。
+
+## 0.8.0 图谱外观
+
+图谱头部点击「外观」，可组合选择四套配色与三种布局；「设置」页也有同一组选项。点选立即应用并保存，刷新后保留；保存失败会回滚并显示原因。「恢复默认」同时恢复经典星空和球体。
+
+| 维度 | 选项 |
+| --- | --- |
+| 配色 | 经典星空 `classic` / 赛博霓虹 `neon` / 铅绘素描 `paper` / 极简单色 `mono` |
+| 布局 | 球体 `sphere` / 平面圆 `flat` / 螺旋银河 `spiral` |
+
+铅绘素描采用素纸底色、石墨灰节点和极淡光晕。平面圆按连接数分为三个同心环；螺旋银河沿三条旋臂排列。三种布局都保留角色卡中心、旋转、缩放和点击详情。切换时保留已选节点、相机及动画状态，不重新请求记忆数据，不改变记忆的重要度、留存或节点尺寸算法。
+
+在现有配置中可合并 `"graphTheme": "classic"` 和 `"graphLayout": "sphere"`。这两个字段通过现有配置接口和备份、原子写流程保存，非法值返回 400。未配置时外观与升级前相同；没有角色卡的库仍保留原来的默认脑状布局。CLI 生成的离线图谱也读取同一配置。
 
 ## 从 0.6.1 升级到 0.7.0 的变化
 
@@ -120,7 +133,7 @@ peerDependencies 已放宽为 >=0.1.0-rc.8 <0.3.0 并标为 optional——宿主
 
 `lib/render/canvas.js` 是唯一绘制源码，导出 `createRenderer(canvas, data, options)`，每个实例独立维护相机、节点缓存、脉冲和动画生命周期。它不导入模块，也不依赖 ModuleLoader。
 
-`lib/client.src.js` 是 ModuleLoader 工厂模板；修改它或 Canvas 源码后运行 `pnpm build`（也可 `npm run build`），生成单文件 `lib/client.js`。产物头部标有「别直接改这个文件」。构建先写同目录临时文件，再原子替换；相同输入得到逐字节相同的产物，失败会非零退出。
+`lib/client.src.js` 是 ModuleLoader 工厂模板；修改它、Canvas 源码或布局源码后运行 `pnpm build`（也可 `npm run build`），生成单文件 `lib/client.js`。`layout.mjs` 中的 `layoutPositions()` 是新布局的唯一实现，构建与离线 HTML 均直接内联它；默认球体仍沿用原有服务器布局，切换回来恢复原坐标。产物头部标有「别直接改这个文件」。构建先写同目录临时文件，再原子替换；相同输入得到逐字节相同的产物，失败会非零退出。
 
 `lib/render/render.mjs` 只保留 HTML、标题、图例、复习清单和原有详情外壳，读取同一份 Canvas 源码并内联。两个消费者共用 `scripts/lib/strip-export.mjs` 去掉导出声明，发布客户端和离线 HTML 都不需要运行时模块加载。离线 HTML 可直接双击打开。
 
@@ -131,10 +144,10 @@ peerDependencies 已放宽为 >=0.1.0-rc.8 <0.3.0 并标为 optional——宿主
 | 方法 | 路径 | 返回内容 |
 | --- | --- | --- |
 | GET | `/memory-engine/` | 独立浏览器可直接访问的整页 HTML 图谱；应用内界面不再加载此页面 |
-| GET | `/memory-engine/api/map` | `{ nodes, links, review, stats, generatedAt, core, spinSpeed }`；配置角色卡时 nodes[0] 为 isCore，core 含 id/title/preview，否则为 null；stats 统计图谱节点 |
+| GET | `/memory-engine/api/map` | `{ nodes, links, review, stats, generatedAt, core, spinSpeed, graphTheme, graphLayout }`；nodes 保留原始球体坐标，客户端按 graphLayout 显示；配置角色卡时 nodes[0] 为 isCore，core 含 id/title/preview，否则为 null；stats 统计图谱节点 |
 | GET | `/memory-engine/api/stats` | 记忆总数、分类、衰减状态及存储位置 |
 | GET | `/memory-engine/api/onboard` | `{ empty, prompt, steps, dataDir }`，空库和手动帮助共用 |
-| GET | `/memory-engine/api/config` | 保留既有字段，`autoMemory` 增加 `dailyCap`，另增加 `showAutoMemoryCostHint`；仍返回 `autoImport: { enabled, sourceCount }` 和 `lastError: { at, stage, message }`，不返回 raw、来源路径或模型配置 |
+| GET | `/memory-engine/api/config` | 包含 `graphTheme`、`graphLayout`，保留既有公开字段；不返回 raw、来源路径或模型配置 |
 | PUT | `/memory-engine/api/config` | 合并合法白名单字段，返回公开配置和 `backup` 文件名 |
 | GET | `/memory-engine/api/list?q=&kind=&sort=&limit=&offset=` | `{ total, allTotal, limit, offset, items }`；包含留存、连接数和 60 字预览 |
 | GET | `/memory-engine/api/item/:id` | 完整条目、留存和连接数；不存在返回 404 |
