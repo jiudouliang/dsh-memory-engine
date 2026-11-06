@@ -1,21 +1,1 @@
-# 依赖
-node_modules/
-.pnpm-store/
-
-# 打包产物
-*.tgz
-*.zip
-
-# 本地验收材料（含真实路径/对话样本）
-验收记录.md
-验收证据.json
-_local-backup-*/
-
-# 运行时数据
-state/
-.dsh/
-*.log
-
-# 系统
-.DS_Store
-Thumbs.db
+��^��n��?�zf��+{�`�8��gc���ƥm�$��쵫^��!�Z $�����雱�

@@ -1,0 +1,66 @@
+{
+  "name": "dsh-memory-engine",
+  "version": "0.7.5",
+  "description": "Local DSH memory engine with neuron network visualization and private file import",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "memory",
+    "memory-engine",
+    "spaced-repetition",
+    "ebbinghaus",
+    "neuron",
+    "visualization"
+  ],
+  "license": "MIT",
+  "author": "dsh-memory-engine contributors",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "dsh-memory-map": "./scripts/render-map.mjs"
+  },
+  "files": [
+    "lib/",
+    "scripts/render-map.mjs",
+    "scripts/sync-qq.mjs",
+    "scripts/cleanup-imports.mjs",
+    "scripts/build-client.mjs",
+    "scripts/lib/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "prepack": "node scripts/build-client.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "bugs": "https://github.com/",
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  }
+}
