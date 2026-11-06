@@ -1,7 +1,7 @@
 {
   "name": "dsh-memory-engine",
   "version": "0.7.5",
-  "description": "Local DSH memory engine with neuron network visualization and private file import",
+  "description": "DSH 本地记忆插件：自动记忆、遗忘曲线、关键词关联、可检索可编辑，数据留在本机。",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -57,10 +57,17 @@
       "immediately": true
     }
   },
-  "bugs": "https://github.com/",
+  "bugs": {
+    "url": "https://github.com/jiudouliang/dsh-memory-engine/issues"
+  },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-tools": {
       "optional": true
     }
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jiudouliang/dsh-memory-engine.git"
+  },
+  "homepage": "https://github.com/jiudouliang/dsh-memory-engine#readme"
 }

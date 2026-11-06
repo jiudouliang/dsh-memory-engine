@@ -1,6 +1,15 @@
 ﻿# DSH 记忆引擎
 
+[![npm](https://img.shields.io/badge/npm-0.7.5-blue)](https://www.npmjs.com/package/dsh-memory-engine)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![tests](https://img.shields.io/badge/tests-257%20passed-brightgreen)](test)
+
 DSH 插件的本地记忆引擎，带神经网络可视化。它让 agent 保存、召回和管理跨会话记忆，也能把你已有的记忆文件导进来。
+
+**仓库**：https://github.com/jiudouliang/dsh-memory-engine
+**安装**：`pnpm add dsh-memory-engine`（装完重启 DSH，标题栏出现「记忆图谱」）
+
+![记忆图谱](docs/screenshot.png)
 
 当前版本：0.7.5。Node ≥22，零新增依赖。自动记忆默认关闭，由用户在图谱头部或设置页手动打开；开启后每轮对话会额外调用一次模型，可能产生费用。自动导入默认只收聊天会话的用户消息，支持来源白名单、工作指令过滤、流程话过滤、规则分类、错误原因、一次性重扫和账本清理。
 
